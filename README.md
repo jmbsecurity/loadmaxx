@@ -41,10 +41,12 @@ This compiles an optimized release build and installs the `loadmaxx` binary to `
 loadmaxx --help
 ```
 
-## Usage
-
-```bash
-# Basic test: 100 requests, 10 concurrent (defaults)
+Usage
+Options
+FlagLongDefaultDescription-u--url(required)Target URL to test-n--requests100Total number of requests to send-c--concurrency10Number of concurrent workers-t--timeout30Request timeout in seconds-o--outputloadtest_log.csvCSV log file path-m--methodGETHTTP method (GET or POST)-b--body(none)POST body (string or @filename)--content-typeapplication/jsonContent-Type header for POST
+GET Requests
+GET is the default method. Use it to test page loads, static assets, API reads, and health checks.
+bash# Basic test: 100 requests, 10 concurrent (defaults)
 loadmaxx --url https://your-site.com
 
 # Heavy load: 5,000 requests, 100 concurrent
@@ -53,19 +55,43 @@ loadmaxx --url https://your-site.com -n 5000 -c 100
 # Quick smoke test with short timeout
 loadmaxx --url https://your-site.com -n 20 -c 5 -t 5
 
+# Test an API endpoint
+loadmaxx --url https://api.your-site.com/v1/users -n 500 -c 25
+
 # Custom CSV output path
 loadmaxx --url https://your-site.com -n 1000 -c 50 -o results.csv
-```
+POST Requests
+Use -m POST to test API endpoints that accept data — login flows, form submissions, webhooks, etc.
+bash# POST JSON payload
+loadmaxx --url https://api.example.com/login \
+  -m POST \
+  -b '{"username":"test","password":"test123"}' \
+  -n 500 -c 20
 
-### Options
+# POST form data
+loadmaxx --url https://api.example.com/submit \
+  -m POST \
+  -b 'username=test&password=test123' \
+  --content-type "application/x-www-form-urlencoded" \
+  -n 500 -c 20
 
-| Flag | Long | Default | Description |
-|------|------|---------|-------------|
-| `-u` | `--url` | (required) | Target URL to test |
-| `-n` | `--requests` | 100 | Total number of requests to send |
-| `-c` | `--concurrency` | 10 | Number of concurrent workers |
-| `-t` | `--timeout` | 30 | Request timeout in seconds |
-| `-o` | `--output` | loadtest_log.csv | CSV log file path |
+# POST XML
+loadmaxx --url https://api.example.com/soap \
+  -m POST \
+  -b '<request><action>test</action></request>' \
+  --content-type "application/xml" \
+  -n 200 -c 10
+
+# POST with body loaded from a file
+loadmaxx --url https://api.example.com/data \
+  -m POST \
+  -b @payload.json \
+  -n 1000 -c 50
+
+# POST with empty body (health check / trigger style)
+loadmaxx --url https://api.example.com/webhook \
+  -m POST \
+  -n 100 -c 10
 
 ## Output
 
