@@ -12,7 +12,9 @@ pub struct Stats {
 
 impl Stats {
     pub fn new() -> Self {
-        Stats { results: Vec::new() }
+        Stats {
+            results: Vec::new(),
+        }
     }
 
     pub fn report(&self, total_duration: Duration) {
@@ -20,7 +22,9 @@ impl Stats {
         let successes = self.results.iter().filter(|r| r.success).count();
         let failures = total - successes;
 
-        let durations: Vec<f64> = self.results.iter()
+        let durations: Vec<f64> = self
+            .results
+            .iter()
             .map(|r| r.duration.as_secs_f64() * 1000.0)
             .collect();
 
@@ -43,22 +47,43 @@ impl Stats {
             }
         }
 
-        println!("\n{}", "═══════════════════════════════════════".bright_cyan());
-        println!("{}", "         LOAD TEST RESULTS".bright_cyan().bold());
-        println!("{}", "═══════════════════════════════════════".bright_cyan());
+        println!(
+            "\n{}",
+            "═══════════════════════════════════════".bright_cyan()
+        );
+        println!(
+            "{}",
+            "         LOAD TEST RESULTS".bright_cyan().bold()
+        );
+        println!(
+            "{}",
+            "═══════════════════════════════════════".bright_cyan()
+        );
 
-        println!("\n{}",   "  Summary".bold().underline());
-        println!("  Total requests:    {}", total.to_string().white().bold());
-        println!("  Successful:        {}", successes.to_string().green().bold());
-        println!("  Failed:            {}", if failures > 0 {
-            failures.to_string().red().bold()
-        } else {
-            failures.to_string().green().bold()
-        });
+        println!("\n{}", "  Summary".bold().underline());
+        println!(
+            "  Total requests:    {}",
+            total.to_string().white().bold()
+        );
+        println!(
+            "  Successful:        {}",
+            successes.to_string().green().bold()
+        );
+        println!(
+            "  Failed:            {}",
+            if failures > 0 {
+                failures.to_string().red().bold()
+            } else {
+                failures.to_string().green().bold()
+            }
+        );
         println!("  Total time:        {:.2}s", total_duration.as_secs_f64());
-        println!("  Requests/sec:      {}", format!("{:.2}", rps).yellow().bold());
+        println!(
+            "  Requests/sec:      {}",
+            format!("{:.2}", rps).yellow().bold()
+        );
 
-        println!("\n{}",   "  Latency".bold().underline());
+        println!("\n{}", "  Latency".bold().underline());
         println!("  Average:           {:.2} ms", avg);
         println!("  Min:               {:.2} ms", min);
         println!("  Max:               {:.2} ms", max);
@@ -67,22 +92,24 @@ impl Stats {
         println!("  P99:               {:.2} ms", p99);
 
         if !status_counts.is_empty() {
-            println!("\n{}",   "  Status Codes".bold().underline());
+            println!("\n{}", "  Status Codes".bold().underline());
             for (code, count) in &status_counts {
                 let colored_code = match code {
                     200..=299 => code.to_string().green(),
                     300..=399 => code.to_string().yellow(),
-                    _         => code.to_string().red(),
+                    _ => code.to_string().red(),
                 };
                 println!("  {}:               {} responses", colored_code, count);
             }
         }
 
-        let errors: Vec<&str> = self.results.iter()
+        let errors: Vec<&str> = self
+            .results
+            .iter()
             .filter_map(|r| r.error.as_deref())
             .collect();
         if !errors.is_empty() {
-            println!("\n{}",   "  Errors".bold().underline().red());
+            println!("\n{}", "  Errors".bold().underline().red());
             let mut error_counts: HashMap<&str, usize> = HashMap::new();
             for e in &errors {
                 *error_counts.entry(e).or_insert(0) += 1;
@@ -92,12 +119,18 @@ impl Stats {
             }
         }
 
-        println!("\n{}", "═══════════════════════════════════════".bright_cyan());
+        println!(
+            "\n{}",
+            "═══════════════════════════════════════".bright_cyan()
+        );
     }
 
     pub fn write_csv(&self, path: &str) -> std::io::Result<()> {
         let mut file = File::create(path)?;
-        writeln!(file, "request_number,timestamp,status,latency_ms,success,error")?;
+        writeln!(
+            file,
+            "request_number,timestamp,status,latency_ms,success,error"
+        )?;
 
         let mut sorted = self.results.clone();
         sorted.sort_by_key(|r| r.request_number);
@@ -111,7 +144,7 @@ impl Stats {
                 r.status.map_or("N/A".to_string(), |s| s.to_string()),
                 r.duration.as_secs_f64() * 1000.0,
                 r.success,
-                r.error.as_deref().unwrap_or("")
+                sanitize_csv(r.error.as_deref().unwrap_or(""))
             )?;
         }
         Ok(())
@@ -124,4 +157,17 @@ fn percentile(sorted: &[f64], pct: f64) -> f64 {
     }
     let idx = (pct / 100.0 * (sorted.len() - 1) as f64).round() as usize;
     sorted[idx.min(sorted.len() - 1)]
+}
+
+fn sanitize_csv(input: &str) -> String {
+    let trimmed = input.trim();
+    if trimmed.starts_with('=')
+        || trimmed.starts_with('+')
+        || trimmed.starts_with('-')
+        || trimmed.starts_with('@')
+    {
+        format!("'{}", trimmed)
+    } else {
+        trimmed.to_string()
+    }
 }

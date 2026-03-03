@@ -1,6 +1,12 @@
+use chrono::Utc;
 use reqwest::Client;
 use std::time::{Duration, Instant};
-use chrono::Utc;
+
+#[derive(Debug, Clone)]
+pub enum HttpMethod {
+    Get,
+    Post { body: String, content_type: String },
+}
 
 #[derive(Debug, Clone)]
 pub struct RequestResult {
@@ -20,10 +26,24 @@ pub fn build_client(timeout: u64, concurrency: u32) -> Client {
         .expect("Failed to build HTTP client")
 }
 
-pub async fn send_request(client: &Client, url: &str, request_number: u32) -> RequestResult {
+pub async fn send_request(
+    client: &Client,
+    url: &str,
+    request_number: u32,
+    method: &HttpMethod,
+) -> RequestResult {
     let timestamp = Utc::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
     let start = Instant::now();
-    match client.get(url).send().await {
+
+    let request = match method {
+        HttpMethod::Get => client.get(url),
+        HttpMethod::Post { body, content_type } => client
+            .post(url)
+            .header("Content-Type", content_type.as_str())
+            .body(body.clone()),
+    };
+
+    match request.send().await {
         Ok(response) => RequestResult {
             request_number,
             timestamp,
