@@ -16,7 +16,10 @@ pub struct RequestResult {
     pub duration: Duration,
     pub success: bool,
     pub error: Option<String>,
+    pub response_body: Option<String>,
 }
+
+const MAX_BODY_CAPTURE: usize = 512;
 
 pub fn build_client(timeout: u64, concurrency: u32, force_http2: bool) -> Client {
     let mut builder = Client::builder()
@@ -48,14 +51,30 @@ pub async fn send_request(
     };
 
     match request.send().await {
-        Ok(response) => RequestResult {
-            request_number,
-            timestamp,
-            status: Some(response.status().as_u16()),
-            duration: start.elapsed(),
-            success: response.status().is_success(),
-            error: None,
-        },
+        Ok(response) => {
+            let status = response.status();
+            let success = status.is_success();
+
+            let response_body = if !success {
+                response
+                    .text()
+                    .await
+                    .ok()
+                    .map(|b| b.chars().take(MAX_BODY_CAPTURE).collect::<String>())
+            } else {
+                None
+            };
+
+            RequestResult {
+                request_number,
+                timestamp,
+                status: Some(status.as_u16()),
+                duration: start.elapsed(),
+                success,
+                error: None,
+                response_body,
+            }
+        }
         Err(e) => RequestResult {
             request_number,
             timestamp,
@@ -63,6 +82,7 @@ pub async fn send_request(
             duration: start.elapsed(),
             success: false,
             error: Some(e.to_string()),
+            response_body: None,
         },
     }
 }

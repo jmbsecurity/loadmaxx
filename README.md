@@ -6,9 +6,10 @@ A blazing-fast CLI HTTP load testing tool built in Rust. Designed to generate ma
 
 - **GET and POST support** — test static pages, APIs, login flows, and form submissions
 - **HTTP/2 support** — auto-negotiates on HTTPS, or force with `--http2`
+- **Response body capture** — see exactly what the server returns on non-2xx responses
 - **High-concurrency async I/O** — powered by tokio and reqwest
 - **Detailed latency stats** — avg, min, max, P50, P90, P99
-- **CSV request logging** — per-request timestamp, status code, latency, and errors
+- **CSV request logging** — per-request timestamp, status, latency, errors, and response bodies
 - **Progress bar** — real-time completion tracking
 - **Status code breakdown** — color-coded 2xx/3xx/4xx/5xx summary
 - **Error aggregation** — grouped error counts for quick diagnosis
@@ -30,7 +31,7 @@ source $HOME/.cargo/env
 ### Build & Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/loadmaxx.git
+git clone https://github.com/jmbsecurity/loadmaxx.git
 cd loadmaxx
 cargo install --path .
 ```
@@ -43,7 +44,6 @@ This compiles an optimized release build and installs the `loadmaxx` binary to `
 loadmaxx --help
 ```
 
-<<<<<<< HEAD
 ## Usage
 
 ### Options
@@ -66,14 +66,6 @@ GET is the default method. Use it to test page loads, static assets, API reads, 
 
 ```bash
 # Basic test: 100 requests, 10 concurrent (defaults)
-=======
-Usage
-Options
-FlagLongDefaultDescription-u--url(required)Target URL to test-n--requests100Total number of requests to send-c--concurrency10Number of concurrent workers-t--timeout30Request timeout in seconds-o--outputloadtest_log.csvCSV log file path-m--methodGETHTTP method (GET or POST)-b--body(none)POST body (string or @filename)--content-typeapplication/jsonContent-Type header for POST
-GET Requests
-GET is the default method. Use it to test page loads, static assets, API reads, and health checks.
-bash# Basic test: 100 requests, 10 concurrent (defaults)
->>>>>>> 28926376cf94db9e6000c82d9c4873a271f7e2a6
 loadmaxx --url https://your-site.com
 
 # Heavy load: 5,000 requests, 100 concurrent
@@ -87,15 +79,8 @@ loadmaxx --url https://api.your-site.com/v1/users -n 500 -c 25
 
 # Custom CSV output path
 loadmaxx --url https://your-site.com -n 1000 -c 50 -o results.csv
-POST Requests
-Use -m POST to test API endpoints that accept data — login flows, form submissions, webhooks, etc.
-bash# POST JSON payload
-loadmaxx --url https://api.example.com/login \
-  -m POST \
-  -b '{"username":"test","password":"test123"}' \
-  -n 500 -c 20
+```
 
-<<<<<<< HEAD
 ### POST Requests
 
 Use `-m POST` to test API endpoints that accept data — login flows, form submissions, webhooks, etc.
@@ -114,15 +99,6 @@ loadmaxx --url https://api.example.com/submit \
   --content-type "application/x-www-form-urlencoded" \
   -n 500 -c 20
 
-=======
-# POST form data
-loadmaxx --url https://api.example.com/submit \
-  -m POST \
-  -b 'username=test&password=test123' \
-  --content-type "application/x-www-form-urlencoded" \
-  -n 500 -c 20
-
->>>>>>> 28926376cf94db9e6000c82d9c4873a271f7e2a6
 # POST XML
 loadmaxx --url https://api.example.com/soap \
   -m POST \
@@ -140,7 +116,6 @@ loadmaxx --url https://api.example.com/data \
 loadmaxx --url https://api.example.com/webhook \
   -m POST \
   -n 100 -c 10
-<<<<<<< HEAD
 ```
 
 The `@filename` syntax works like curl — prefix a file path with `@` and LoadMaxx reads the file contents as the request body.
@@ -176,8 +151,6 @@ loadmaxx --url https://httpbin.org/post \
   -b '{"test":"loadmaxx"}' \
   -n 50 -c 5
 ```
-=======
->>>>>>> 28926376cf94db9e6000c82d9c4873a271f7e2a6
 
 ## Output
 
@@ -214,7 +187,10 @@ loadmaxx --url https://httpbin.org/post \
 
   Status Codes
   200:               998 responses
-  503:               2 responses
+  429:               2 responses
+
+  Response Bodies (non-2xx)
+  429 → <html><head><title>429 Too Many Requests</title></head>...
 
 ═══════════════════════════════════════
 
@@ -223,13 +199,13 @@ loadmaxx --url https://httpbin.org/post \
 
 ### CSV Log
 
-Each request is logged with full detail:
+Each request is logged with full detail including response bodies for non-2xx responses:
 
 ```csv
-request_number,timestamp,status,latency_ms,success,error
-1,2026-03-03 14:22:01.234,200,45.23,true,""
-2,2026-03-03 14:22:01.238,200,52.11,true,""
-3,2026-03-03 14:22:01.241,503,30.05,false,""
+request_number,timestamp,status,latency_ms,success,error,response_body
+1,2026-03-03 14:22:01.234,200,45.23,true,"",""
+2,2026-03-03 14:22:01.238,429,52.11,false,"","<html><head><title>429 Too Many Requests</title>..."
+3,2026-03-03 14:22:01.241,200,30.05,true,"",""
 ```
 
 ## Project Structure
@@ -240,7 +216,7 @@ loadmaxx/
 ├── .gitignore        # Excludes /target from git
 └── src/
     ├── main.rs       # CLI parsing, validation, and orchestration
-    ├── loader.rs     # HTTP client, GET/POST execution, HTTP/2 support
+    ├── loader.rs     # HTTP client, GET/POST execution, HTTP/2, response capture
     └── stats.rs      # Results aggregation, reporting, and CSV export
 ```
 

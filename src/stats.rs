@@ -103,6 +103,7 @@ impl Stats {
             }
         }
 
+        // Connection-level errors (no response received)
         let errors: Vec<&str> = self
             .results
             .iter()
@@ -119,6 +120,41 @@ impl Stats {
             }
         }
 
+        // Non-200 response bodies (show first unique per status code)
+        let non_success: Vec<&RequestResult> = self
+            .results
+            .iter()
+            .filter(|r| !r.success && r.response_body.is_some())
+            .collect();
+        if !non_success.is_empty() {
+            println!(
+                "\n{}",
+                "  Response Bodies (non-2xx)".bold().underline().red()
+            );
+            let mut seen_codes: HashMap<u16, bool> = HashMap::new();
+            for r in &non_success {
+                if let Some(code) = r.status {
+                    if seen_codes.contains_key(&code) {
+                        continue;
+                    }
+                    seen_codes.insert(code, true);
+                    if let Some(body) = &r.response_body {
+                        let preview: String = body
+                            .chars()
+                            .take(200)
+                            .collect::<String>()
+                            .replace('\n', " ")
+                            .replace('\r', "");
+                        println!(
+                            "  {} → {}",
+                            code.to_string().red().bold(),
+                            preview.dimmed()
+                        );
+                    }
+                }
+            }
+        }
+
         println!(
             "\n{}",
             "═══════════════════════════════════════".bright_cyan()
@@ -129,22 +165,31 @@ impl Stats {
         let mut file = File::create(path)?;
         writeln!(
             file,
-            "request_number,timestamp,status,latency_ms,success,error"
+            "request_number,timestamp,status,latency_ms,success,error,response_body"
         )?;
 
         let mut sorted = self.results.clone();
         sorted.sort_by_key(|r| r.request_number);
 
         for r in &sorted {
+            let body = r
+                .response_body
+                .as_deref()
+                .unwrap_or("")
+                .replace('"', "'")
+                .replace('\n', " ")
+                .replace('\r', "");
+
             writeln!(
                 file,
-                "{},{},{},{:.2},{},\"{}\"",
+                "{},{},{},{:.2},{},\"{}\",\"{}\"",
                 r.request_number,
                 r.timestamp,
                 r.status.map_or("N/A".to_string(), |s| s.to_string()),
                 r.duration.as_secs_f64() * 1000.0,
                 r.success,
-                sanitize_csv(r.error.as_deref().unwrap_or(""))
+                sanitize_csv(r.error.as_deref().unwrap_or("")),
+                sanitize_csv(&body)
             )?;
         }
         Ok(())
