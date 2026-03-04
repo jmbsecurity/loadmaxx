@@ -43,6 +43,7 @@ This compiles an optimized release build and installs the `loadmaxx` binary to `
 loadmaxx --help
 ```
 
+<<<<<<< HEAD
 ## Usage
 
 ### Options
@@ -65,6 +66,14 @@ GET is the default method. Use it to test page loads, static assets, API reads, 
 
 ```bash
 # Basic test: 100 requests, 10 concurrent (defaults)
+=======
+Usage
+Options
+FlagLongDefaultDescription-u--url(required)Target URL to test-n--requests100Total number of requests to send-c--concurrency10Number of concurrent workers-t--timeout30Request timeout in seconds-o--outputloadtest_log.csvCSV log file path-m--methodGETHTTP method (GET or POST)-b--body(none)POST body (string or @filename)--content-typeapplication/jsonContent-Type header for POST
+GET Requests
+GET is the default method. Use it to test page loads, static assets, API reads, and health checks.
+bash# Basic test: 100 requests, 10 concurrent (defaults)
+>>>>>>> 28926376cf94db9e6000c82d9c4873a271f7e2a6
 loadmaxx --url https://your-site.com
 
 # Heavy load: 5,000 requests, 100 concurrent
@@ -78,8 +87,15 @@ loadmaxx --url https://api.your-site.com/v1/users -n 500 -c 25
 
 # Custom CSV output path
 loadmaxx --url https://your-site.com -n 1000 -c 50 -o results.csv
-```
+POST Requests
+Use -m POST to test API endpoints that accept data — login flows, form submissions, webhooks, etc.
+bash# POST JSON payload
+loadmaxx --url https://api.example.com/login \
+  -m POST \
+  -b '{"username":"test","password":"test123"}' \
+  -n 500 -c 20
 
+<<<<<<< HEAD
 ### POST Requests
 
 Use `-m POST` to test API endpoints that accept data — login flows, form submissions, webhooks, etc.
@@ -98,6 +114,15 @@ loadmaxx --url https://api.example.com/submit \
   --content-type "application/x-www-form-urlencoded" \
   -n 500 -c 20
 
+=======
+# POST form data
+loadmaxx --url https://api.example.com/submit \
+  -m POST \
+  -b 'username=test&password=test123' \
+  --content-type "application/x-www-form-urlencoded" \
+  -n 500 -c 20
+
+>>>>>>> 28926376cf94db9e6000c82d9c4873a271f7e2a6
 # POST XML
 loadmaxx --url https://api.example.com/soap \
   -m POST \
@@ -115,6 +140,7 @@ loadmaxx --url https://api.example.com/data \
 loadmaxx --url https://api.example.com/webhook \
   -m POST \
   -n 100 -c 10
+<<<<<<< HEAD
 ```
 
 The `@filename` syntax works like curl — prefix a file path with `@` and LoadMaxx reads the file contents as the request body.
@@ -150,6 +176,8 @@ loadmaxx --url https://httpbin.org/post \
   -b '{"test":"loadmaxx"}' \
   -n 50 -c 5
 ```
+=======
+>>>>>>> 28926376cf94db9e6000c82d9c4873a271f7e2a6
 
 ## Output
 
