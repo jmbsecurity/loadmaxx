@@ -18,12 +18,16 @@ pub struct RequestResult {
     pub error: Option<String>,
 }
 
-pub fn build_client(timeout: u64, concurrency: u32) -> Client {
-    Client::builder()
+pub fn build_client(timeout: u64, concurrency: u32, force_http2: bool) -> Client {
+    let mut builder = Client::builder()
         .timeout(Duration::from_secs(timeout))
-        .pool_max_idle_per_host(concurrency as usize)
-        .build()
-        .expect("Failed to build HTTP client")
+        .pool_max_idle_per_host(concurrency as usize);
+
+    if force_http2 {
+        builder = builder.http2_prior_knowledge();
+    }
+
+    builder.build().expect("Failed to build HTTP client")
 }
 
 pub async fn send_request(

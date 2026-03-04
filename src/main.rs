@@ -46,6 +46,10 @@ struct Args {
     /// Content-Type header for POST requests
     #[arg(long, default_value = "application/json")]
     content_type: String,
+
+    /// Force HTTP/2 prior knowledge (skip ALPN negotiation)
+    #[arg(long, default_value_t = false)]
+    http2: bool,
 }
 
 fn validate_url(url: &str) -> Result<(), String> {
@@ -119,16 +123,23 @@ async fn main() {
         }
     };
 
+    let protocol_display = if args.http2 {
+        "HTTP/2 (forced)"
+    } else {
+        "Auto (HTTP/2 via ALPN on HTTPS, HTTP/1.1 on HTTP)"
+    };
+
     println!("{}", "\n🚀 LoadMaxx".bright_cyan().bold());
     println!("  Target:       {}", args.url.white().bold());
     println!("  Method:       {}", method_display.white().bold());
+    println!("  Protocol:     {}", protocol_display.white().bold());
     println!("  Requests:     {}", args.requests);
     println!("  Concurrency:  {}", args.concurrency);
     println!("  Timeout:      {}s", args.timeout);
     println!("  Log file:     {}", args.output.white());
     println!("{}", "\nStarting...\n".yellow());
 
-    let client = loader::build_client(args.timeout, args.concurrency);
+    let client = loader::build_client(args.timeout, args.concurrency, args.http2);
     let stats = Arc::new(Mutex::new(stats::Stats::new()));
     let completed = Arc::new(std::sync::atomic::AtomicU32::new(0));
     let total_start = Instant::now();
