@@ -59,6 +59,7 @@ loadmaxx --help
 | `-f` | `--format` | csv | Output format (`csv` or `json`) |
 | `-m` | `--method` | GET | HTTP method (GET or POST) |
 | `-b` | `--body` | (none) | POST body (string or @filename) |
+| | `--url-file` | (none) | File containing URLs to test (one per line) |
 | | `--content-type` | application/json | Content-Type header for POST |
 | | `--http2` | false | Force HTTP/2 prior knowledge |
 
@@ -167,6 +168,23 @@ You can also pass multiple URLs in a single `-u` flag:
 ```bash
 loadmaxx -u https://example.com/a https://example.com/b https://example.com/c \
   -n 600 -c 30
+```
+
+Or load URLs from a text file with `--url-file`:
+
+```bash
+# urls.txt
+https://api.example.com/v1/users
+https://api.example.com/v1/products
+https://api.example.com/v1/orders
+# comments and blank lines are ignored
+```
+
+```bash
+loadmaxx --url-file urls.txt -n 3000 -c 50
+
+# Combine file and inline URLs
+loadmaxx --url-file urls.txt -u https://api.example.com/v1/health -n 1000 -c 25
 ```
 
 ### Output Format

@@ -19,6 +19,10 @@ struct Args {
     #[arg(short, long, num_args = 1..)]
     url: Vec<String>,
 
+    /// File containing URLs to test (one per line)
+    #[arg(long)]
+    url_file: Option<String>,
+
     /// Total number of requests to send
     #[arg(short = 'n', long, default_value_t = 100)]
     requests: u32,
@@ -113,7 +117,25 @@ fn parse_method(args: &Args) -> HttpMethod {
 
 #[tokio::main]
 async fn main() {
-    let args = Args::parse();
+    let mut args = Args::parse();
+
+    // Load URLs from file if provided
+    if let Some(ref path) = args.url_file {
+        match std::fs::read_to_string(path) {
+            Ok(contents) => {
+                let file_urls: Vec<String> = contents
+                    .lines()
+                    .map(|l| l.trim().to_string())
+                    .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                    .collect();
+                args.url.extend(file_urls);
+            }
+            Err(e) => {
+                eprintln!("  {} Failed to read URL file '{}': {}", "✗".red().bold(), path, e);
+                std::process::exit(1);
+            }
+        }
+    }
 
     // Validate inputs
     if let Err(e) = validate_urls(&args.url) {
