@@ -11,6 +11,7 @@ pub enum HttpMethod {
 #[derive(Debug, Clone)]
 pub struct RequestResult {
     pub request_number: u32,
+    pub url: String,
     pub timestamp: String,
     pub status: Option<u16>,
     pub duration: Duration,
@@ -67,6 +68,7 @@ pub async fn send_request(
 
             RequestResult {
                 request_number,
+                url: url.to_string(),
                 timestamp,
                 status: Some(status.as_u16()),
                 duration: start.elapsed(),
@@ -77,6 +79,7 @@ pub async fn send_request(
         }
         Err(e) => RequestResult {
             request_number,
+            url: url.to_string(),
             timestamp,
             status: None,
             duration: start.elapsed(),

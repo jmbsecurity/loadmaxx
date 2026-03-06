@@ -15,9 +15,9 @@ const MAX_REQUESTS: u32 = 1_000_000;
 #[derive(Parser, Debug)]
 #[command(name = "loadmaxx", version, about)]
 struct Args {
-    /// Target URL to test
-    #[arg(short, long)]
-    url: String,
+    /// Target URL(s) to test (can specify multiple)
+    #[arg(short, long, num_args = 1..)]
+    url: Vec<String>,
 
     /// Total number of requests to send
     #[arg(short = 'n', long, default_value_t = 100)]
@@ -31,9 +31,13 @@ struct Args {
     #[arg(short, long, default_value_t = 30)]
     timeout: u64,
 
-    /// Output CSV log file path
-    #[arg(short, long, default_value = "loadtest_log.csv")]
+    /// Output log file path
+    #[arg(short, long, default_value = "loadtest_log")]
     output: String,
+
+    /// Output format (csv or json)
+    #[arg(short, long, default_value = "csv")]
+    format: String,
 
     /// HTTP method (GET or POST)
     #[arg(short, long, default_value = "GET")]
@@ -52,20 +56,32 @@ struct Args {
     http2: bool,
 }
 
-fn validate_url(url: &str) -> Result<(), String> {
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err("URL must start with http:// or https://".to_string());
+fn validate_urls(urls: &[String]) -> Result<(), String> {
+    if urls.is_empty() {
+        return Err("At least one URL is required".to_string());
     }
+    for url in urls {
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            return Err(format!("URL must start with http:// or https://: {}", url));
+        }
 
-    let lower = url.to_lowercase();
-    if lower.contains("localhost") || lower.contains("127.0.0.1") || lower.contains("[::1]") {
-        eprintln!(
-            "  {} Targeting localhost/loopback address",
-            "⚠".yellow().bold()
-        );
+        let lower = url.to_lowercase();
+        if lower.contains("localhost") || lower.contains("127.0.0.1") || lower.contains("[::1]") {
+            eprintln!(
+                "  {} Targeting localhost/loopback address: {}",
+                "⚠".yellow().bold(),
+                url
+            );
+        }
     }
-
     Ok(())
+}
+
+fn validate_format(format: &str) -> Result<(), String> {
+    match format {
+        "csv" | "json" => Ok(()),
+        other => Err(format!("Unsupported output format '{}'. Use 'csv' or 'json'", other)),
+    }
 }
 
 fn parse_method(args: &Args) -> HttpMethod {
@@ -100,10 +116,21 @@ async fn main() {
     let args = Args::parse();
 
     // Validate inputs
-    if let Err(e) = validate_url(&args.url) {
+    if let Err(e) = validate_urls(&args.url) {
         eprintln!("  {} {}", "✗".red().bold(), e);
         std::process::exit(1);
     }
+
+    if let Err(e) = validate_format(&args.format) {
+        eprintln!("  {} {}", "✗".red().bold(), e);
+        std::process::exit(1);
+    }
+
+    let output_path = if args.output.contains('.') {
+        args.output.clone()
+    } else {
+        format!("{}.{}", args.output, args.format)
+    };
 
     if args.requests > MAX_REQUESTS {
         eprintln!(
@@ -130,13 +157,21 @@ async fn main() {
     };
 
     println!("{}", "\n🚀 LoadMaxx".bright_cyan().bold());
-    println!("  Target:       {}", args.url.white().bold());
+    if args.url.len() == 1 {
+        println!("  Target:       {}", args.url[0].white().bold());
+    } else {
+        println!("  Targets:      {} URLs (round-robin)", args.url.len());
+        for (i, u) in args.url.iter().enumerate() {
+            println!("    [{}] {}", i + 1, u.white().bold());
+        }
+    }
     println!("  Method:       {}", method_display.white().bold());
     println!("  Protocol:     {}", protocol_display.white().bold());
     println!("  Requests:     {}", args.requests);
     println!("  Concurrency:  {}", args.concurrency);
     println!("  Timeout:      {}s", args.timeout);
-    println!("  Log file:     {}", args.output.white());
+    println!("  Format:       {}", args.format.white());
+    println!("  Log file:     {}", output_path.white());
     println!("{}", "\nStarting...\n".yellow());
 
     let client = loader::build_client(args.timeout, args.concurrency, args.http2);
@@ -147,10 +182,11 @@ async fn main() {
     let mut tasks = JoinSet::new();
     let semaphore = Arc::new(Semaphore::new(args.concurrency as usize));
     let method = Arc::new(method);
+    let urls = Arc::new(args.url);
 
     for i in 0..args.requests {
         let client = client.clone();
-        let url = args.url.clone();
+        let urls = Arc::clone(&urls);
         let stats = Arc::clone(&stats);
         let completed = Arc::clone(&completed);
         let semaphore = Arc::clone(&semaphore);
@@ -159,7 +195,8 @@ async fn main() {
 
         tasks.spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
-            let result = loader::send_request(&client, &url, i + 1, &method).await;
+            let url = &urls[i as usize % urls.len()];
+            let result = loader::send_request(&client, url, i + 1, &method).await;
 
             let count = completed.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
             let step = (total / 10).max(1);
@@ -191,14 +228,19 @@ async fn main() {
     let locked_stats = stats.lock().await;
     locked_stats.report(total_duration);
 
-    match locked_stats.write_csv(&args.output) {
+    let write_result = match args.format.as_str() {
+        "json" => locked_stats.write_json(&output_path),
+        _ => locked_stats.write_csv(&output_path),
+    };
+
+    match write_result {
         Ok(_) => println!(
             "\n  {} Logged to {}",
             "✓".green().bold(),
-            args.output.white().bold()
+            output_path.white().bold()
         ),
         Err(e) => eprintln!(
-            "\n  {} Failed to write CSV: {}",
+            "\n  {} Failed to write log: {}",
             "✗".red().bold(),
             e
         ),

@@ -165,7 +165,7 @@ impl Stats {
         let mut file = File::create(path)?;
         writeln!(
             file,
-            "request_number,timestamp,status,latency_ms,success,error,response_body"
+            "request_number,url,timestamp,status,latency_ms,success,error,response_body"
         )?;
 
         let mut sorted = self.results.clone();
@@ -182,8 +182,9 @@ impl Stats {
 
             writeln!(
                 file,
-                "{},{},{},{:.2},{},\"{}\",\"{}\"",
+                "{},\"{}\",{},{},{:.2},{},\"{}\",\"{}\"",
                 r.request_number,
+                sanitize_csv(&r.url),
                 r.timestamp,
                 r.status.map_or("N/A".to_string(), |s| s.to_string()),
                 r.duration.as_secs_f64() * 1000.0,
@@ -192,6 +193,57 @@ impl Stats {
                 sanitize_csv(&body)
             )?;
         }
+        Ok(())
+    }
+
+    pub fn write_json(&self, path: &str) -> std::io::Result<()> {
+        let mut file = File::create(path)?;
+        let mut sorted = self.results.clone();
+        sorted.sort_by_key(|r| r.request_number);
+
+        write!(file, "[")?;
+        for (i, r) in sorted.iter().enumerate() {
+            if i > 0 {
+                write!(file, ",")?;
+            }
+            let body = r
+                .response_body
+                .as_deref()
+                .unwrap_or("")
+                .replace('\\', "\\\\")
+                .replace('"', "\\\"")
+                .replace('\n', "\\n")
+                .replace('\r', "\\r");
+            let error = r
+                .error
+                .as_deref()
+                .unwrap_or("")
+                .replace('\\', "\\\\")
+                .replace('"', "\\\"");
+
+            write!(
+                file,
+                "\n  {{\
+                \n    \"request_number\": {},\
+                \n    \"url\": \"{}\",\
+                \n    \"timestamp\": \"{}\",\
+                \n    \"status\": {},\
+                \n    \"latency_ms\": {:.2},\
+                \n    \"success\": {},\
+                \n    \"error\": \"{}\",\
+                \n    \"response_body\": \"{}\"\
+                \n  }}",
+                r.request_number,
+                r.url.replace('"', "\\\""),
+                r.timestamp,
+                r.status.map_or("null".to_string(), |s| s.to_string()),
+                r.duration.as_secs_f64() * 1000.0,
+                r.success,
+                error,
+                body
+            )?;
+        }
+        writeln!(file, "\n]")?;
         Ok(())
     }
 }
