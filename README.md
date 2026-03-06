@@ -9,7 +9,8 @@ A blazing-fast CLI HTTP load testing tool built in Rust. Designed to generate ma
 - **Response body capture** — see exactly what the server returns on non-2xx responses
 - **High-concurrency async I/O** — powered by tokio and reqwest
 - **Detailed latency stats** — avg, min, max, P50, P90, P99
-- **CSV request logging** — per-request timestamp, status, latency, errors, and response bodies
+- **Multi-URL testing** — test multiple endpoints at once with round-robin distribution
+- **CSV and JSON logging** — per-request timestamp, URL, status, latency, errors, and response bodies
 - **Progress bar** — real-time completion tracking
 - **Status code breakdown** — color-coded 2xx/3xx/4xx/5xx summary
 - **Error aggregation** — grouped error counts for quick diagnosis
@@ -50,11 +51,12 @@ loadmaxx --help
 
 | Flag | Long | Default | Description |
 |------|------|---------|-------------|
-| `-u` | `--url` | (required) | Target URL to test |
+| `-u` | `--url` | (required) | Target URL(s) to test (can specify multiple) |
 | `-n` | `--requests` | 100 | Total number of requests to send |
 | `-c` | `--concurrency` | 10 | Number of concurrent workers |
 | `-t` | `--timeout` | 30 | Request timeout in seconds |
-| `-o` | `--output` | loadtest_log.csv | CSV log file path |
+| `-o` | `--output` | loadtest_log | Output log file path (extension auto-added from format) |
+| `-f` | `--format` | csv | Output format (`csv` or `json`) |
 | `-m` | `--method` | GET | HTTP method (GET or POST) |
 | `-b` | `--body` | (none) | POST body (string or @filename) |
 | | `--content-type` | application/json | Content-Type header for POST |
@@ -137,6 +139,53 @@ loadmaxx --url https://your-site.com -n 1000 -c 50 --http2
 loadmaxx --url http://your-site.com:8080 -n 1000 -c 50 --http2
 ```
 
+### Multiple URLs
+
+LoadMaxx can test multiple endpoints at once. Requests are distributed across URLs in round-robin order — request 1 goes to URL 1, request 2 to URL 2, and so on, cycling back to the start.
+
+```bash
+# Test two endpoints, 1000 requests split evenly across both
+loadmaxx -u https://api.example.com/users -u https://api.example.com/products \
+  -n 1000 -c 50
+
+# Test three API routes with POST
+loadmaxx -u https://api.example.com/v1/search \
+  -u https://api.example.com/v1/recommend \
+  -u https://api.example.com/v1/trending \
+  -m POST \
+  -b '{"query":"test"}' \
+  -n 3000 -c 30
+
+# Combine multiple URLs with JSON logging
+loadmaxx -u https://api.example.com/health \
+  -u https://api.example.com/status \
+  -n 500 -c 20 -f json
+```
+
+You can also pass multiple URLs in a single `-u` flag:
+
+```bash
+loadmaxx -u https://example.com/a https://example.com/b https://example.com/c \
+  -n 600 -c 30
+```
+
+### Output Format
+
+Use `-f` to choose between CSV (default) and JSON logging:
+
+```bash
+# CSV output (default)
+loadmaxx --url https://example.com -n 100 -f csv
+
+# JSON output
+loadmaxx --url https://example.com -n 100 -f json
+
+# JSON output with custom file path
+loadmaxx --url https://example.com -n 100 -f json -o results.json
+```
+
+The output file extension is added automatically based on the format if you don't include one (e.g., `loadtest_log.csv` or `loadtest_log.json`).
+
 ### Testing with httpbin.org
 
 [httpbin.org](https://httpbin.org) is a free public API that echoes back whatever you send. Useful for verifying your setup before pointing at a real target.
@@ -164,6 +213,7 @@ loadmaxx --url https://httpbin.org/post \
   Requests:     1000
   Concurrency:  50
   Timeout:      30s
+  Format:       csv
   Log file:     loadtest_log.csv
 
 ═══════════════════════════════════════
@@ -199,13 +249,42 @@ loadmaxx --url https://httpbin.org/post \
 
 ### CSV Log
 
-Each request is logged with full detail including response bodies for non-2xx responses:
+Each request is logged with full detail including the target URL and response bodies for non-2xx responses:
 
 ```csv
-request_number,timestamp,status,latency_ms,success,error,response_body
-1,2026-03-03 14:22:01.234,200,45.23,true,"",""
-2,2026-03-03 14:22:01.238,429,52.11,false,"","<html><head><title>429 Too Many Requests</title>..."
-3,2026-03-03 14:22:01.241,200,30.05,true,"",""
+request_number,url,timestamp,status,latency_ms,success,error,response_body
+1,"https://api.example.com/users",2026-03-03 14:22:01.234,200,45.23,true,"",""
+2,"https://api.example.com/products",2026-03-03 14:22:01.238,429,52.11,false,"","<html>..."
+3,"https://api.example.com/users",2026-03-03 14:22:01.241,200,30.05,true,"",""
+```
+
+### JSON Log
+
+Use `-f json` for structured JSON output:
+
+```json
+[
+  {
+    "request_number": 1,
+    "url": "https://api.example.com/users",
+    "timestamp": "2026-03-03 14:22:01.234",
+    "status": 200,
+    "latency_ms": 45.23,
+    "success": true,
+    "error": "",
+    "response_body": ""
+  },
+  {
+    "request_number": 2,
+    "url": "https://api.example.com/products",
+    "timestamp": "2026-03-03 14:22:01.238",
+    "status": 429,
+    "latency_ms": 52.11,
+    "success": false,
+    "error": "",
+    "response_body": "<html>..."
+  }
+]
 ```
 
 ## Project Structure
@@ -217,7 +296,7 @@ loadmaxx/
 └── src/
     ├── main.rs       # CLI parsing, validation, and orchestration
     ├── loader.rs     # HTTP client, GET/POST execution, HTTP/2, response capture
-    └── stats.rs      # Results aggregation, reporting, and CSV export
+    └── stats.rs      # Results aggregation, reporting, and CSV/JSON export
 ```
 
 ## License
